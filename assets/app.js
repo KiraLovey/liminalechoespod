@@ -28,7 +28,7 @@ const Q=()=>S.questions;
 const curQ=()=>Q()[S.qIndex];
 const roundOf=i=>Math.floor(i/PER_ROUND);
 const roundCount=()=>Math.ceil(Q().length/PER_ROUND);
-const roundTitle=r=>(Q()[r*PER_ROUND]||{}).cat||"Round "+(r+1);
+const roundTitle=r=>{const qs=Q().slice(r*PER_ROUND,(r+1)*PER_ROUND);if(qs.length&&qs.every(q=>q.kind==="host"))return "Bonus Round";return (qs[0]||{}).cat||"Round "+(r+1);};
 const isFinalRound=r=>roundTitle(r)==="Bonus Round";
 const lastInRound=i=>i%PER_ROUND===PER_ROUND-1||i===Q().length-1;
 const posInRound=i=>i%PER_ROUND+1;
@@ -181,7 +181,7 @@ function sheetToQuestions(csv){
     o1:col("option 1"),o2:col("option 2"),o3:col("option 3"),o4:col("option 4"),correct:col("correct"),explain:col("explanation"),pron:col("pronunciation"),status:col("status")};
   const out=[];
   rows.slice(1).forEach(r=>{const order=parseInt(r[c.order],10);const status=(r[c.status]||"").trim().toLowerCase();
-    if(isNaN(order))return; if(status&&status!=="approve"&&status!=="approved"&&status!=="edit")return;
+    if(isNaN(order))return; const st0=status.charAt(0); if(st0&&!"aey".includes(st0))return;   // a=approve, e=edit, y=yes → in; v=veto, n=no, r=reject → out
     const pron=(r[c.pron]||"").split(";").map(s=>s.trim()).filter(Boolean).map(s=>{const k=s.indexOf(":");return k>0?[s.slice(0,k).trim(),s.slice(k+1).trim()]:[s,""];});
     out.push({order,ep:`Ep ${r[c.ep]} · ${r[c.title]}`,cat:(r[c.cat]||"").trim(),kind:(r[c.type]||"").toLowerCase().startsWith("host")?"host":"fact",
       setup:r[c.setup]||"",q:r[c.q]||"",a:[r[c.o1],r[c.o2],r[c.o3],r[c.o4]].map(x=>(x||"").trim()),correct:(parseInt(r[c.correct],10)||1)-1,explain:r[c.explain]||"",pron});});
