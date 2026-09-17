@@ -83,7 +83,7 @@ function LocalBackend(){
     reset(){S.phase="lobby";S.qIndex=-1;S.round=0;S.finalRound=false;S.peekFrom=null;S.paused=false;S.players={};S.audience={};S.answers={};S.crowd={};S.result=null;render();},
     setSettings(k,v){S.settings[k]=v;render();},
     setQuestions(qs){S.questions=qs;S.qv++;render();return Promise.resolve(qs.length);},
-    hostAuthed:()=>true, needPin:()=>false, setPin(){},
+    hostAuthed:()=>true, needPin:()=>false, setPin(){return Promise.resolve(true);},
   };
   return api;
 }
@@ -115,6 +115,7 @@ function SupabaseBackend(){
     async ready(){
       try{const t=await rpc("server_now",{});serverOffset=Date.parse(t)-Date.now();}catch(e){}
       await loadGame();
+      if(ROLE==="host"&&pin){const {error}=await sb.rpc("host_set_state",{p_game:G,p_pin:pin,p_patch:{}});if(error){pin="";try{localStorage.removeItem("le-trivia-pin");}catch(x){}}}
       const wantsPeople=ROLE!=="play";
       if(wantsPeople){await loadPeople();await loadAnswers();}
       else{for(const pid of myPids())await loadMine(pid);}
@@ -159,7 +160,9 @@ function SupabaseBackend(){
     reset:()=>host("host_reset").then(()=>{S.players={};S.audience={};S.answers={};S.crowd={};render();}),
     setSettings:(k,v)=>setState({settings:Object.assign({},S.settings,{[k]:v})}),
     setQuestions:qs=>rpc("host_set_questions",{p_game:G,p_pin:pin,p_questions:qs}).then(n=>{S.questions=qs;render();return n;}),
-    hostAuthed:()=>!!pin, needPin:()=>ROLE==="host"&&!pin, setPin(p){pin=p;try{localStorage.setItem("le-trivia-pin",p);}catch(e){}render();},
+    hostAuthed:()=>!!pin, needPin:()=>ROLE==="host"&&!pin,
+    async setPin(p){const prev=pin;pin=p;try{const {error}=await sb.rpc("host_set_state",{p_game:G,p_pin:p,p_patch:{}});if(error)throw error;try{localStorage.setItem("le-trivia-pin",p);}catch(e){}return true;}
+      catch(e){pin="";try{localStorage.removeItem("le-trivia-pin");}catch(x){}toast(/pin/i.test(e.message||"")?"That PIN didn't match. Try again.":"Couldn't reach the game: "+(e.message||"network error"));return false;}},
   };
   return api;
 }
@@ -236,7 +239,9 @@ function render(){instances.forEach(i=>{if(i.role==="host")renderHost(i);else if
 
 function renderHost(inst){const $=s=>inst.root.querySelector(s);
   if(B.needPin()){if(!inst.root.querySelector(".pinbox")){inst.root.innerHTML=`<div class="pinbox"><div class="eyebrow">Host control</div><h1>Enter the host PIN</h1><p style="color:var(--ink-dim);font-weight:500;margin:0">Same PIN for both hosts. It's the one set in the Supabase schema.</p><input id="pin" inputmode="numeric" autocomplete="off"><button class="btn primary" id="pin-go">Open the control panel</button></div>`;
-      inst.root.querySelector("#pin-go").onclick=()=>{const p=inst.root.querySelector("#pin").value.trim();if(p){B.setPin(p);inst.root.innerHTML=T.host;inst.bound=false;render();}};}return;}
+      const go=()=>{const p=inst.root.querySelector("#pin").value.trim();if(!p)return;inst.root.innerHTML=`<div class="pinbox"><div class="eyebrow">Host control</div><h1>Checking the PIN…</h1></div>`;B.setPin(p).then(ok=>{if(ok){inst.root.innerHTML=T.host;inst.bound=false;}else{inst.bound=false;inst.root.innerHTML="";}render();});};
+      inst.root.querySelector("#pin-go").onclick=go;inst.root.querySelector("#pin").addEventListener("keydown",e=>{if(e.key==="Enter")go();});inst.root.querySelector("#pin").focus();}return;}
+  if(!inst.root.querySelector("#h-code")){inst.root.innerHTML=T.host;inst.bound=false;}
   $("#h-code").textContent=S.code;$("#h-phase").textContent=S.phase+(S.peekFrom?" (peek)":"");
   $("#h-count").textContent=Object.keys(S.players).length+(Object.keys(S.audience).length?` + ${Object.keys(S.audience).length} audience`:"");
   $("#h-qn").textContent=!Q().length?"no questions loaded":S.qIndex<0?`Round ${S.round+1} of ${roundCount()}`:`R${S.round+1} · Q${posInRound(S.qIndex)} of ${roundLen(S.round)}`;
