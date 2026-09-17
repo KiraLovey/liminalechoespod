@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Studio · Anniversary Trivia</title>
+<link rel="icon" href="/assets/logo.webp">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="/assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="/config.js"></script>
+<script src="/assets/questions.draft.js"></script>
+</head>
+<body data-role="studio">
+<section class="view on"><div class="studio">
+  <div class="hostcol" id="studio-host"></div>
+  <div class="right">
+    <div class="topbar"><div class="title"><img src="/assets/logo.webp" alt=""><div><h1 class="goldtx">Anniversary Trivia Live</h1><div class="sub">Studio · rehearse alone, no server</div></div></div>
+      <div class="seg"><button class="on" data-ratio="wide">Stage 16:9</button><button data-ratio="tall">Stage 9:16</button></div></div>
+    <div class="stage-box" id="studio-stagebox"><div id="studio-stage"></div></div>
+    <div class="phones"><div class="phone"><div class="lbl">Phone A <span>joins before start = player</span></div><div class="screen" id="studio-phoneA"></div></div>
+      <div class="phone"><div class="lbl">Phone B <span>joins after start = audience</span></div><div class="screen" id="studio-phoneB"></div></div></div>
+    <p class="hint"><b>Studio is offline.</b> It runs the whole game inside this tab with simulated players, so you can rehearse the flow without touching the live game. The live pages are <a href="/host">/host</a>, <a href="/stage">/stage</a>, <a href="/tall">/tall</a> and the player page at <a href="/">/</a>.</p>
+  </div></div></section>
+<script src="/assets/app.js"></script></body></html>
