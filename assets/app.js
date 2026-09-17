@@ -11,7 +11,8 @@ const CFG=Object.assign({GAME:"ECHO",SUPABASE_URL:"",SUPABASE_KEY:"",SHEET_CSV_U
 const ROLE=document.body.dataset.role||"studio";
 const PER_ROUND=CFG.PER_ROUND;
 const LETTERS=["A","B","C","D"];
-const REACTIONS=[["😂","laugh"],["😱","gasp"],["🔥","fire"],["👻","spooky"]];
+const REACTIONS=[["😂","laugh"],["😱","gasp"],["🔥","fire"],["👻","spooky"],["💩","poop"]];
+const SOUNDS=CFG.SOUNDS!==false;
 const LOGO="/assets/logo.webp";
 const $$=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -154,7 +155,7 @@ function SupabaseBackend(){
     reveal:()=>host("host_reveal"),
     pause:()=>host("host_pause"), resume:()=>host("host_resume"), addTime:s=>host("host_add_time",{p_secs:s}),
     showBoard:()=>setState({phase:"leaderboard",peek_from:null}),
-    peek:()=>setState({phase:"leaderboard",peek_from:S.phase}),
+    peek:()=>setState(Object.assign({phase:"leaderboard",peek_from:S.phase},(S.result&&S.result.top)?{}:{result:{q:S.qIndex,peek:true,top:ranking().slice(0,10).map(p=>({pid:p.id,name:p.name,score:p.score,last:p.last})),aud_top:audienceRanking().slice(0,3).map(p=>({name:p.name,score:p.score||0}))}})),
     unpeek:()=>setState({phase:S.peekFrom||"setup",peek_from:null}),
     nextRound(){const r=S.round+1;return r>=roundCount()?setState({phase:"final"}):api.startRound(r);},
     reset:()=>host("host_reset").then(()=>{S.players={};S.audience={};S.answers={};S.crowd={};render();}),
@@ -212,10 +213,10 @@ host:`<div class="host"><aside>
   <div><div class="eyebrow">Questions</div><div class="qlist" id="h-qlist"></div></div>
 </main></div>`,
 stage:`<div class="stage-wrap"><div class="stage" id="stage"><div class="grain"></div>
-  <div class="top"><div class="brand"><img src="${LOGO}" alt=""><div><div class="t1">Liminal Echoes</div><div class="t2">One year · Anniversary trivia</div></div></div><div class="joinbox">Play along · code <b id="st-code">—</b></div></div>
+  <div class="top"><div class="brand"><img src="${LOGO}" alt=""><div><div class="t1">Liminal Echoes</div><div class="t2">One year · Anniversary trivia</div></div></div><div class="joinbox"><div class="jl">Play along · code <b id="st-code">—</b></div><div class="jc" id="st-right"></div></div></div>
   <div class="cam one"><span class="lbl">Cam 1</span><span class="name">Kira</span></div><div class="cam two"><span class="lbl">Cam 2</span><span class="name">Fox</span></div>
   <div class="content" id="st-content"></div>
-  <div class="ticker"><span id="st-left">Liminal Echoes · Year one</span><span id="st-right"></span></div>
+  
   <div class="corner" id="st-corner"></div><div class="fx" id="st-fx"></div></div></div>`,
 play:`<div class="player"><div class="bar"><span class="me" id="p-me">Not joined</span><span><span class="pts num" id="p-pts"></span></span></div><div class="card" id="p-card"></div></div>`,
 };
@@ -231,11 +232,20 @@ function fitAll(){instances.filter(i=>i.role==="stage").forEach(i=>{const st=i.r
 window.addEventListener("resize",fitAll);
 function toast(msg){let t=$$("#toast");if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;left:50%;top:18px;transform:translateX(-50%);background:#2A2412;color:#F2EAD3;border:1px solid #C9A84C;padding:10px 16px;border-radius:6px;font-weight:700;z-index:99;max-width:90vw";document.body.appendChild(t);}
   t.textContent=msg;t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",4000);}
-function showReaction(e){instances.filter(i=>i.role==="stage").forEach(inst=>{const fx=inst.root.querySelector("#st-fx");if(!fx)return;const s=document.createElement("span");s.textContent=e;const W=inst.ratio==="tall"?1080:1920;
+/* quiet synthesized blips for reactions (no audio files needed). Plays on stage pages only. */
+let AC=null;function audio(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume();return AC;}catch(e){return null;}}
+function blip(kind){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=ac.currentTime,g=ac.createGain();g.connect(ac.destination);const vol=(CFG.REACTION_VOLUME??0.12);
+  const tone=(f0,f1,d,type="sine",at=0,v=1)=>{const o=ac.createOscillator(),og=ac.createGain();o.type=type;o.frequency.setValueAtTime(f0,t+at);o.frequency.exponentialRampToValueAtTime(f1,t+at+d);og.gain.setValueAtTime(0,t+at);og.gain.linearRampToValueAtTime(vol*v,t+at+0.02);og.gain.exponentialRampToValueAtTime(0.0001,t+at+d);o.connect(og);og.connect(g);o.start(t+at);o.stop(t+at+d+0.05);};
+  if(kind==="😂"){tone(520,620,0.12,"triangle",0);tone(620,720,0.12,"triangle",0.14);tone(720,820,0.12,"triangle",0.28,.8);}
+  else if(kind==="😱"){tone(300,900,0.45,"sawtooth",0,.5);}
+  else if(kind==="🔥"){const b=ac.createBufferSource(),buf=ac.createBuffer(1,ac.sampleRate*0.35,ac.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);b.buffer=buf;const f=ac.createBiquadFilter();f.type="bandpass";f.frequency.value=1800;const ng=ac.createGain();ng.gain.value=vol*0.9;b.connect(f);f.connect(ng);ng.connect(g);b.start(t);}
+  else if(kind==="👻"){tone(220,180,0.7,"sine",0,.9);tone(330,270,0.7,"sine",0.05,.4);}
+  else if(kind==="💩"){tone(400,90,0.35,"square",0,.35);tone(160,60,0.2,"sine",0.3,.6);}}
+function showReaction(e){blip(e);instances.filter(i=>i.role==="stage").forEach(inst=>{const fx=inst.root.querySelector("#st-fx");if(!fx)return;const s=document.createElement("span");s.textContent=e;const W=inst.ratio==="tall"?1080:1920;
   s.style.left=(W*0.15+Math.random()*W*0.7)+"px";s.style.setProperty("--dx",(Math.random()*160-80)+"px");s.style.setProperty("--rot",(Math.random()*40-20)+"deg");fx.appendChild(s);setTimeout(()=>s.remove(),3300);});}
 
 /* ============ RENDER ============ */
-function render(){instances.forEach(i=>{if(i.role==="host")renderHost(i);else if(i.role==="stage")renderStage(i);else renderPlayer(i);});const c=$$("#conn");if(c){c.textContent=S.connected?"live":"connecting…";c.className="conn"+(S.connected?"":" bad");}}
+function render(){try{musicTick();}catch(e){}instances.forEach(i=>{if(i.role==="host")renderHost(i);else if(i.role==="stage")renderStage(i);else renderPlayer(i);});const c=$$("#conn");if(c){c.textContent=S.connected?"live":"connecting…";c.className="conn"+(S.connected?"":" bad");}}
 
 function renderHost(inst){const $=s=>inst.root.querySelector(s);
   if(B.needPin()){if(!inst.root.querySelector(".pinbox")){inst.root.innerHTML=`<div class="pinbox"><div class="eyebrow">Host control</div><h1>Enter the host PIN</h1><p style="color:var(--ink-dim);font-weight:500;margin:0">Same PIN for both hosts. It's the one set in the Supabase schema.</p><input id="pin" inputmode="numeric" autocomplete="off"><button class="btn primary" id="pin-go">Open the control panel</button></div>`;
@@ -297,7 +307,7 @@ function renderStage(inst){const $=s=>inst.root.querySelector(s);
       c.innerHTML=`<div class="qnum">${esc(roundTitle(S.round))} · ${posInRound(S.qIndex)} of ${roundLen(S.round)}<span>${esc(q.ep)}</span>${q.kind==="host"?`<span class="bonus-tag">Hosts · fastest correct +${S.settings.fastest}</span>`:""}${S.finalRound?`<span class="bonus-tag">Double points</span>`:""}</div><div class="qtext">${esc(q.q)}</div>
         <div class="answers" id="st-answers">${q.a.map((t,i)=>`<div class="ans ${LETTERS[i]}"><span class="mark"></span><span>${esc(t)}</span></div>`).join("")}</div>
         <div class="meta"><div class="timer" id="st-timer"></div><div class="answered num" id="st-answered"><b>${Object.keys(curAnswers()).length}</b>of ${total} answered</div></div>`;}
-    tickStage(inst);
+    fitContent(inst);tickStage(inst);
   }else if(S.phase==="reveal"){
     if(inst.key!==key){const q=curQ()||{a:[]},r=result();
       const winner=()=>`<div class="winner"><div class="lbl">${q.kind==="host"?"About the hosts · correct answer":"Correct answer"}</div><div class="txt">${esc(q.a[q.correct])}</div>${q.kind==="host"?`<div class="fast">${r.fastest?`⚡ Fastest: ${esc(r.fastest)} · +${S.settings.fastest}`:"Nobody got it in time"}</div>`:""}<div class="sub"><b>${r.got}</b> of ${r.tot} players got it</div></div>`;
@@ -309,12 +319,24 @@ function renderStage(inst){const $=s=>inst.root.querySelector(s);
   }else if(S.phase==="leaderboard"){if(inst.key===key)return;const top=(S.result&&S.result.top)||ranking();const rows=top.slice(0,inst.ratio==="tall"?7:6);
     c.innerHTML=`<div class="board"><h2>${S.peekFrom?"Leaderboard":"After "+(isFinalRound(S.round)?"the final round":"round "+(S.round+1))}</h2>${rows.map((p,i)=>`<div class="row" style="animation-delay:${i*60}ms"><span class="rank num">${i+1}</span><span>${esc(p.name)}</span><span class="score num">${p.score}</span></div>`).join("")}</div>`;
   }else if(S.phase==="final"){if(inst.key===key)return;const top=(S.result&&S.result.top)||ranking(),p=i=>top[i]||{name:"—",score:0};const aud=((S.result&&S.result.aud_top)||audienceRanking())[0];
-    c.innerHTML=`<div class="final-h">One year in. <em>Champions.</em></div><div class="podium">
+    c.innerHTML=`<div class="final-h">Congratulations to our <em>strangest and most curious</em> listeners!</div><div class="podium">
       <div class="col p2"><div class="name">${esc(p(1).name)}</div><div class="pts num">${p(1).score} pts</div><div class="block">2</div></div>
       <div class="col p1"><div class="name">${esc(p(0).name)}</div><div class="pts num">${p(0).score} pts</div><div class="block">1</div></div>
       <div class="col p3"><div class="name">${esc(p(2).name)}</div><div class="pts num">${p(2).score} pts</div><div class="block">3</div></div></div>
       ${aud?`<div class="podium-aud">Audience champion · <b>${esc(aud.name)}</b> · ${aud.score||0} pts</div>`:""}`;}
   inst.key=key;}
+/* Category music: CFG.MUSIC = {"Cryptid Corner":"/assets/music/cryptid.mp3", ...}. Plays quietly on stage pages during a round. */
+let musicEl=null,musicKey="";
+function musicTick(){if(!CFG.MUSIC||!instances.some(i=>i.role==="stage"))return;const playing=["round","setup","question","reveal"].includes(S.phase);
+  const key=playing?(CFG.MUSIC[roundTitle(S.round)]||CFG.MUSIC["*"]||""):"";
+  if(key===musicKey)return;musicKey=key;
+  if(musicEl){const old=musicEl;musicEl=null;let v=old.volume;const fade=setInterval(()=>{v-=0.05;if(v<=0){clearInterval(fade);old.pause();old.remove();}else old.volume=v;},80);}
+  if(key){const a=new Audio(key);a.loop=true;a.volume=0;document.body.appendChild(a);a.play().catch(()=>{});musicEl=a;let v=0;const target=CFG.MUSIC_VOLUME??0.18;const fade=setInterval(()=>{if(musicEl!==a){clearInterval(fade);return;}v+=0.02;if(v>=target){a.volume=target;clearInterval(fade);}else a.volume=v;},80);}}
+function fitContent(inst){const c=inst.root.querySelector("#st-content");if(!c)return;let f=1;c.style.setProperty("--fit",f);
+  c.querySelectorAll(".ans span:last-child").forEach(s=>{const n=s.textContent.length;s.style.fontSize=n>70?"0.8em":n>50?"0.88em":"";});
+  c.style.alignContent="start";                       // measure from the top so overflow is visible to scrollHeight
+  for(let i=0;i<14&&c.scrollHeight>c.clientHeight+2;i++){f-=0.05;c.style.setProperty("--fit",f.toFixed(2));}
+  c.style.alignContent="";}
 function tickStage(inst){const $=s=>inst.root.querySelector(s),t=$("#st-timer");if(!t||S.phase!=="question")return;const left=remaining(),frac=Math.min(1,left/S.settings.duration);
   const a=$("#st-answered");if(a)a.innerHTML=`<b>${Object.keys(curAnswers()).length}</b>of ${Object.values(S.players).length||1} answered`;
   const ring=`<div class="ring"><svg viewBox="0 0 104 104"><circle cx="52" cy="52" r="46" fill="none" stroke="rgba(201,168,76,.18)" stroke-width="8"/><circle cx="52" cy="52" r="46" fill="none" stroke="${frac<.25?'#D9705A':'#C9A84C'}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${2*Math.PI*46}" stroke-dashoffset="${2*Math.PI*46*(1-frac)}"/></svg><b class="num">${Math.ceil(left)}</b></div>`;
@@ -339,10 +361,10 @@ function renderPlayer(inst){const $=s=>inst.root.querySelector(s),myId=inst.pid,
       ${mine?`<p style="text-align:center">Locked in. Waiting for the reveal…</p>`:`<p style="text-align:center">${q.kind==="host"?`Fastest correct answer gets +${S.settings.fastest}. `:""}Correct +${S.settings.correct*(S.finalRound?S.settings.mult:1)} · wrong ${S.settings.wrong} · no answer 0</p>`}`;
       card.querySelectorAll(".pbtn").forEach(b=>b.onclick=()=>B.answer(myId,+b.dataset.i));}
     tickPlayer(inst);}
-  else if(S.phase==="reveal"){const q=curQ()||{a:[]},ok=mine&&mine.correct,scored=mine&&mine.points!=null,top=(S.result&&S.result.top)||ranking();let rank=top.findIndex(p=>(p.pid||p.id)===myId)+1;
+  else if(S.phase==="reveal"){const q=curQ()||{a:[]},ok=mine&&mine.correct,scored=mine&&mine.points!=null,top=(S.result&&S.result.top)||(ROLE==="play"?[]:ranking());let rank=top.findIndex(p=>(p.pid||p.id)===myId)+1;
     card.innerHTML=`<div class="result ${ok?"ok":"no"}"><div class="mark">${ok?"✓":"✕"}</div><h2>${!mine?"No answer.":!scored?"Scoring…":ok?"Correct!":"Not this time."}</h2>
       <div class="gain num" style="${scored&&mine.points<0?"color:var(--coral)":""}">${scored?(mine.points>0?"+":"")+mine.points:mine?"…":"0"}</div>${mine&&mine.fastest?`<p class="sub" style="color:var(--gold-hi)">⚡ Fastest correct answer in the room</p>`:""}<p class="sub">The answer was <b>${esc(q.a[q.correct])}</b></p><p class="sub">${rank?`You're in <b>${ord(rank)}</b> place with ${me.score} pts`:`You have ${me.score} pts`}</p></div>${reactRow()}`;bindReacts(card);}
-  else if(S.phase==="leaderboard"||S.phase==="final"){const top=(S.result&&S.result.top)||ranking(),rank=top.findIndex(p=>(p.pid||p.id)===myId)+1;
+  else if(S.phase==="leaderboard"||S.phase==="final"){const top=(S.result&&S.result.top)||(ROLE==="play"?[]:ranking()),rank=top.findIndex(p=>(p.pid||p.id)===myId)+1;
     card.innerHTML=`<div class="waiting"><h2>${S.phase==="final"?"Final standings":"Leaderboard"}</h2><p>${rank?`You're <b>${ord(rank)}</b>`:`You have ${me.score} pts`}</p><div class="minirows">${top.slice(0,5).map((p,i)=>`<div class="minirow ${(p.pid||p.id)===myId?"me":""}"><span class="rank num">${i+1}</span><span>${esc(p.name)}</span><span class="num">${p.score}</span></div>`).join("")}</div>${S.phase==="final"?"<p>Thanks for playing along for year one.</p>":"<p>Next up is coming.</p>"}</div>${reactRow()}`;bindReacts(card);}
   inst.pkey=key;}
 function renderAudience(inst,aud,card){const $=s=>inst.root.querySelector(s),myId=inst.pid,myVote=(S.crowd[S.qIndex]||{})[myId];
