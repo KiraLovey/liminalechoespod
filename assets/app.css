@@ -210,6 +210,9 @@
   .wide .ticker{left:520px;right:520px;padding-left:0;padding-right:0}
   .fx{position:absolute;inset:0;pointer-events:none;overflow:hidden}
   .fx span{position:absolute;bottom:-80px;font-size:64px;animation:rise 3.2s ease-out forwards;filter:drop-shadow(0 6px 10px rgba(0,0,0,.6))}
+  .fx .boom{position:absolute;width:0;height:0}
+  .fx .boom i{position:absolute;left:-6px;top:-6px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 14px 3px currentColor;animation:spark 1.3s cubic-bezier(.1,.7,.3,1) forwards}
+  @keyframes spark{0%{transform:translate(0,0) scale(1.4);opacity:1}70%{opacity:1}100%{transform:translate(var(--dx),calc(var(--dy) + 60px)) scale(.3);opacity:0}}
   @keyframes rise{0%{transform:translateY(0) scale(.6);opacity:0}12%{opacity:1;transform:translateY(-120px) scale(1)}100%{transform:translateY(-900px) translateX(var(--dx)) rotate(var(--rot));opacity:0}}
 
   /* ------- player (phone) ------- */

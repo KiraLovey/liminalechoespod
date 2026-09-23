@@ -239,14 +239,20 @@ function toast(msg){let t=$$("#toast");if(!t){t=document.createElement("div");t.
   t.textContent=msg;t.style.display="block";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",4000);}
 /* quiet synthesized blips for reactions (no audio files needed). Plays on stage pages only. */
 let AC=null;function audio(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume();return AC;}catch(e){return null;}}
-function blip(kind){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=ac.currentTime,g=ac.createGain();g.connect(ac.destination);const vol=(CFG.REACTION_VOLUME??0.12);
+function playFile(url,vol){const ac=audio();if(!ac)return false;musicBuffer(url).then(buf=>{const n=ac.createBufferSource(),g=ac.createGain();n.buffer=buf;g.gain.value=vol;n.connect(g);g.connect(ac.destination);n.start();}).catch(e=>console.warn("[sfx]",url,e.message));return true;}
+function blip(kind){if(!SOUNDS)return;const file=(CFG.REACTION_SOUNDS||{})[kind];if(file&&playFile(file,CFG.REACTION_VOLUME??0.12))return;const ac=audio();if(!ac)return;const t=ac.currentTime,g=ac.createGain();g.connect(ac.destination);const vol=(CFG.REACTION_VOLUME??0.12);
   const tone=(f0,f1,d,type="sine",at=0,v=1)=>{const o=ac.createOscillator(),og=ac.createGain();o.type=type;o.frequency.setValueAtTime(f0,t+at);o.frequency.exponentialRampToValueAtTime(f1,t+at+d);og.gain.setValueAtTime(0,t+at);og.gain.linearRampToValueAtTime(vol*v,t+at+0.02);og.gain.exponentialRampToValueAtTime(0.0001,t+at+d);o.connect(og);og.connect(g);o.start(t+at);o.stop(t+at+d+0.05);};
   if(kind==="😂"){tone(520,620,0.12,"triangle",0);tone(620,720,0.12,"triangle",0.14);tone(720,820,0.12,"triangle",0.28,.8);}
   else if(kind==="😱"){tone(300,900,0.45,"sawtooth",0,.5);}
   else if(kind==="🔥"){const b=ac.createBufferSource(),buf=ac.createBuffer(1,ac.sampleRate*0.35,ac.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);b.buffer=buf;const f=ac.createBiquadFilter();f.type="bandpass";f.frequency.value=1800;const ng=ac.createGain();ng.gain.value=vol*0.9;b.connect(f);f.connect(ng);ng.connect(g);b.start(t);}
   else if(kind==="👻"){tone(330,240,0.9,"triangle",0,1.6);tone(495,360,0.9,"sine",0.04,1.0);tone(660,480,0.5,"sine",0.5,0.5);}
   else if(kind==="💩"){tone(400,90,0.35,"square",0,.35);tone(160,60,0.2,"sine",0.3,.6);}}
-function showReaction(e){if(e==="fanfare"){fanfare(false);return;}if(e==="fanfare-final"){fanfare(true);return;}blip(e);instances.filter(i=>i.role==="stage").forEach(inst=>{const fx=inst.root.querySelector("#st-fx");if(!fx)return;const s=document.createElement("span");s.textContent=e;const W=inst.ratio==="tall"?1080:1920;
+function fireworks(n){instances.filter(i=>i.role==="stage").forEach(inst=>{const fx=inst.root.querySelector("#st-fx");if(!fx)return;const W=inst.ratio==="tall"?1080:1920,H=inst.ratio==="tall"?1920:1080;
+  const cols=["#E6CF8A","#C9A84C","#D9705A","#7FC8A0","#F2EAD3"];
+  for(let k=0;k<n;k++)setTimeout(()=>{const b=document.createElement("div");b.className="boom";b.style.left=(W*0.12+Math.random()*W*0.76)+"px";b.style.top=(H*0.1+Math.random()*H*0.55)+"px";const c=cols[k%cols.length],r=120+Math.random()*120;
+    for(let i=0;i<14;i++){const sp=document.createElement("i");const a=i/14*Math.PI*2;sp.style.setProperty("--dx",Math.cos(a)*r+"px");sp.style.setProperty("--dy",Math.sin(a)*r+"px");sp.style.background=c;sp.style.animationDelay=(Math.random()*0.08)+"s";b.appendChild(sp);}
+    fx.appendChild(b);setTimeout(()=>b.remove(),1600);},k*230+Math.random()*120);});}
+function showReaction(e){if(e==="fanfare"){fanfare(false);fireworks(6);return;}if(e==="fanfare-final"){fanfare(true);fireworks(12);return;}blip(e);instances.filter(i=>i.role==="stage").forEach(inst=>{const fx=inst.root.querySelector("#st-fx");if(!fx)return;const s=document.createElement("span");s.textContent=e;const W=inst.ratio==="tall"?1080:1920;
   s.style.left=(W*0.15+Math.random()*W*0.7)+"px";s.style.setProperty("--dx",(Math.random()*160-80)+"px");s.style.setProperty("--rot",(Math.random()*40-20)+"deg");fx.appendChild(s);setTimeout(()=>s.remove(),3300);});}
 
 /* ============ RENDER ============ */
@@ -335,7 +341,7 @@ function renderStage(inst){const $=s=>inst.root.querySelector(s);
 let musicKey="";
 /* end-of-round / final fanfare: synthesized brass in A (the theme's key), stage pages only */
 let fanfareKey="";
-function fanfare(big){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=ac.currentTime,vol=(CFG.FANFARE_VOLUME??0.3),out=ac.createGain();out.gain.value=vol;
+function fanfare(big){if(!SOUNDS)return;const file=big?(CFG.FANFARE_FINAL_SOUND||CFG.FANFARE_SOUND):CFG.FANFARE_SOUND;if(file&&playFile(file,CFG.FANFARE_VOLUME??0.3))return;const ac=audio();if(!ac)return;const t=ac.currentTime,vol=(CFG.FANFARE_VOLUME??0.3),out=ac.createGain();out.gain.value=vol;
   const lpf=ac.createBiquadFilter();lpf.type="lowpass";lpf.frequency.value=2600;out.connect(lpf);lpf.connect(ac.destination);
   const hit=(midis,at,d,v0=1)=>midis.forEach(m=>{const f=440*Math.pow(2,(m-69)/12),v=v0*2.2/midis.length;[["sawtooth",0.5,0],["square",0.18,0.003],["sawtooth",0.35,-0.003]].forEach(([type,g,det])=>{const o=ac.createOscillator(),og=ac.createGain();o.type=type;o.frequency.value=f*(1+det);og.gain.setValueAtTime(0,t+at);og.gain.linearRampToValueAtTime(g*v,t+at+0.03);og.gain.setValueAtTime(g*v,t+at+d*0.6);og.gain.exponentialRampToValueAtTime(0.0001,t+at+d);o.connect(og);og.connect(out);o.start(t+at);o.stop(t+at+d+0.05);});});
   const A=[57,64,69,73],D=[62,66,69,74],E=[64,68,71,76],Ahi=[57,64,69,73,76,81];
@@ -345,7 +351,7 @@ function fanfare(big){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=a
   n.buffer=buf;const bp=ac.createBiquadFilter();bp.type="bandpass";bp.frequency.value=6000;const ng=ac.createGain();ng.gain.value=0.35;n.connect(bp);bp.connect(ng);ng.connect(out);n.start(t+(big?1.48:0.6));}
 function musicTick(){if(!instances.some(i=>i.role==="stage"))return;
   const boardKey=(S.phase==="leaderboard"&&!S.peekFrom)?"board:"+S.round:S.phase==="final"?"final":"";
-  if(boardKey!==fanfareKey){fanfareKey=boardKey;if(boardKey)fanfare(boardKey==="final");}
+  if(boardKey!==fanfareKey){fanfareKey=boardKey;if(boardKey){fanfare(boardKey==="final");fireworks(boardKey==="final"?12:6);}}
   if(!CFG.MUSIC)return;
   // the category bed runs from the round title card through every question and reveal (and keeps going under a peek), and stops for the end-of-round leaderboard
   const playing=["round","setup","question","reveal"].includes(S.phase)||(S.phase==="leaderboard"&&!!S.peekFrom);
