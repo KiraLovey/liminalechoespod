@@ -119,7 +119,7 @@ function SupabaseBackend(){
       if(ROLE==="host"&&pin){const {error}=await sb.rpc("host_set_state",{p_game:G,p_pin:pin,p_patch:{}});if(error){pin="";try{localStorage.removeItem("le-trivia-pin");}catch(x){}}}
       const wantsPeople=ROLE!=="play";
       if(wantsPeople){await loadPeople();await loadAnswers();}
-      else{for(const pid of myPids())await loadMine(pid);}
+      else{if(S.phase==="lobby")await loadPeople();for(const pid of myPids())await loadMine(pid);}   // phones: names list only while the lobby is open
       S.connected=true;render();
       const ch=sb.channel("game:"+G);
       ch.on("postgres_changes",{event:"UPDATE",schema:"public",table:"games",filter:"id=eq."+G},async payload=>{
@@ -129,8 +129,12 @@ function SupabaseBackend(){
         if(S.qIndex!==prevQ){S.answers[S.qIndex]=S.answers[S.qIndex]||{};S.crowd[S.qIndex]=S.crowd[S.qIndex]||{};if(wantsPeople)await loadAnswers();}
         if(!wantsPeople&&(S.phase==="reveal"||S.phase==="leaderboard"||S.phase==="final")&&prevPhase!==S.phase){for(const pid of myPids())await loadMine(pid);}
         if(wantsPeople&&S.phase==="reveal"&&prevPhase!==S.phase){await loadAnswers();await loadPeople();}
-        if(S.phase==="lobby"&&prevPhase!=="lobby"){S.answers={};S.crowd={};if(wantsPeople)await loadPeople();else{S.players={};S.audience={};}}
+        if(S.phase==="lobby"&&prevPhase!=="lobby"){S.answers={};S.crowd={};await loadPeople();for(const pid of myPids())await loadMine(pid);}
         render();});
+      if(!wantsPeople){ // phones only care who's in the room during the lobby
+        ch.on("postgres_changes",{event:"INSERT",schema:"public",table:"players",filter:"game_id=eq."+G},payload=>{const p=payload.new;if(!p||!p.pid||S.phase!=="lobby"||p.role!=="player")return;
+          S.players[p.pid]={name:p.name,score:p.score,last:p.last,joinedAt:Date.parse(p.joined_at)};render();});
+      }
       if(wantsPeople){
         ch.on("postgres_changes",{event:"*",schema:"public",table:"players",filter:"game_id=eq."+G},payload=>{const p=payload.new;if(!p||!p.pid){return;}
           const tgt=p.role==="player"?S.players:S.audience;tgt[p.pid]={name:p.name,score:p.score,last:p.last,joinedAt:Date.parse(p.joined_at)};render();});
@@ -239,7 +243,7 @@ function blip(kind){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=ac.
   if(kind==="😂"){tone(520,620,0.12,"triangle",0);tone(620,720,0.12,"triangle",0.14);tone(720,820,0.12,"triangle",0.28,.8);}
   else if(kind==="😱"){tone(300,900,0.45,"sawtooth",0,.5);}
   else if(kind==="🔥"){const b=ac.createBufferSource(),buf=ac.createBuffer(1,ac.sampleRate*0.35,ac.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);b.buffer=buf;const f=ac.createBiquadFilter();f.type="bandpass";f.frequency.value=1800;const ng=ac.createGain();ng.gain.value=vol*0.9;b.connect(f);f.connect(ng);ng.connect(g);b.start(t);}
-  else if(kind==="👻"){tone(220,180,0.7,"sine",0,.9);tone(330,270,0.7,"sine",0.05,.4);}
+  else if(kind==="👻"){tone(330,240,0.9,"triangle",0,1.6);tone(495,360,0.9,"sine",0.04,1.0);tone(660,480,0.5,"sine",0.5,0.5);}
   else if(kind==="💩"){tone(400,90,0.35,"square",0,.35);tone(160,60,0.2,"sine",0.3,.6);}}
 function showReaction(e){blip(e);instances.filter(i=>i.role==="stage").forEach(inst=>{const fx=inst.root.querySelector("#st-fx");if(!fx)return;const s=document.createElement("span");s.textContent=e;const W=inst.ratio==="tall"?1080:1920;
   s.style.left=(W*0.15+Math.random()*W*0.7)+"px";s.style.setProperty("--dx",(Math.random()*160-80)+"px");s.style.setProperty("--rot",(Math.random()*40-20)+"deg");fx.appendChild(s);setTimeout(()=>s.remove(),3300);});}
@@ -348,16 +352,18 @@ function bindReacts(card){card.querySelectorAll(".reacts button").forEach(b=>b.o
 function renderPlayer(inst){const $=s=>inst.root.querySelector(s),myId=inst.pid,me=S.players[myId],aud=S.audience[myId],card=$("#p-card");
   if(!me&&aud){renderAudience(inst,aud,card);return;}
   $("#p-me").textContent=me?me.name:"Not joined";$("#p-pts").textContent=me?me.score+" pts":"";
-  const mine=curAnswers()[myId],key=[S.phase,S.qIndex,S.round,!!me,mine?mine.choice:"-",mine?mine.points:"-",me?me.score:0,S.connected].join(":");
+  const mine=curAnswers()[myId],key=[S.phase,S.qIndex,S.round,!!me,mine?mine.choice:"-",mine?mine.points:"-",me?me.score:0,S.connected,S.phase==="lobby"?Object.keys(S.players).length:0].join(":");
   if(key===inst.pkey&&S.phase!=="question")return;
   if(!me){if(inst.pkey!==key){card.innerHTML=`<img class="logo" src="${LOGO}" alt=""><h1>Anniversary <em>Trivia</em></h1><p style="text-align:center">Enter the code on the stream, then pick a name everyone will see.</p>
       <input class="big-input" id="j-code" placeholder="CODE" maxlength="8" autocomplete="off" value="${ROLE==="play"?esc(S.code):""}"><input class="name-input" id="j-name" placeholder="Your name" maxlength="18" autocomplete="off"><div class="err" id="j-err"></div><button class="go" id="j-go">Let's play</button>`;
       $("#j-go").onclick=async()=>{const err=await B.join(myId,$("#j-code").value.trim().toUpperCase(),$("#j-name").value.trim());if(err)$("#j-err").textContent=err;};}}
-  else if(S.phase==="lobby")card.innerHTML=`<div class="waiting"><div class="dot"></div><h2>You're in, ${esc(me.name)}.</h2><p>Keep this page open. The first question lands here the moment the hosts start.</p></div>`;
+  else if(S.phase==="lobby"){const others=ranking().filter(p=>p.id!==myId).sort((a,b)=>(b.joinedAt||0)-(a.joinedAt||0)),n=others.length;
+    card.innerHTML=`<div class="waiting"><div class="dot"></div><h2>You're in, ${esc(me.name)}.</h2><p>Keep this page open. The first question lands here the moment the hosts start.</p>
+      <div class="eyebrow">${n?`${n} other${n===1?"":"s"} in the room`:"You're the first one here"}</div><div class="chips">${others.map(p=>`<span class="chip">${esc(p.name)}</span>`).join("")}</div></div>`;}
   else if(S.phase==="round")card.innerHTML=`<div class="waiting"><div class="dot"></div><h2>${esc(roundTitle(S.round))}</h2><p>${isFinalRound(S.round)?"Final round: correct answers are worth double.":`Round ${S.round+1} of ${roundCount()}.`}</p></div>`;
   else if(S.phase==="setup")card.innerHTML=`<div class="waiting"><div class="dot"></div><h2>Question ${posInRound(S.qIndex)}</h2><p>Listen to the hosts. Your buttons appear when the timer starts.</p></div>`;
   else if(S.phase==="question"){const q=curQ()||{a:[]};
-    if(inst.pkey!==key){card.innerHTML=`<div class="ptimer" id="p-timer"></div><div class="track"><i id="p-track"></i></div><div class="pgrid">${q.a.map((t,i)=>`<button class="pbtn ${LETTERS[i]} ${mine?(mine.choice===i?"mine":"dim"):""}" data-i="${i}" ${mine?"disabled":""}>${esc(t)}</button>`).join("")}</div>
+    if(inst.pkey!==key){card.innerHTML=`<div class="ptimer" id="p-timer"></div><div class="track"><i id="p-track"></i></div><div class="pq">${esc(q.q)}</div><div class="pgrid">${q.a.map((t,i)=>`<button class="pbtn ${LETTERS[i]} ${mine?(mine.choice===i?"mine":"dim"):""}" data-i="${i}" ${mine?"disabled":""}>${esc(t)}</button>`).join("")}</div>
       ${mine?`<p style="text-align:center">Locked in. Waiting for the reveal…</p>`:`<p style="text-align:center">${q.kind==="host"?`Fastest correct answer gets +${S.settings.fastest}. `:""}Correct +${S.settings.correct*(S.finalRound?S.settings.mult:1)} · wrong ${S.settings.wrong} · no answer 0</p>`}`;
       card.querySelectorAll(".pbtn").forEach(b=>b.onclick=()=>B.answer(myId,+b.dataset.i));}
     tickPlayer(inst);}
@@ -370,7 +376,7 @@ function renderPlayer(inst){const $=s=>inst.root.querySelector(s),myId=inst.pid,
 function renderAudience(inst,aud,card){const $=s=>inst.root.querySelector(s),myId=inst.pid,myVote=(S.crowd[S.qIndex]||{})[myId];
   $("#p-me").textContent=aud.name+" · audience";$("#p-pts").textContent=(aud.score||0)+" pts";
   const key=["aud",S.phase,S.qIndex,S.round,myVote,aud.score].join(":");if(key===inst.pkey)return;inst.pkey=key;
-  if(S.phase==="question"){const q=curQ()||{a:[]};card.innerHTML=`<div class="eyebrow">Audience vote</div><p>The game already started, so you're in the audience. Vote along: audience points count for the audience prize.</p><div class="pgrid">${q.a.map((t,i)=>`<button class="pbtn ${LETTERS[i]} ${myVote!==undefined?(myVote===i?"mine":"dim"):""}" data-i="${i}" ${myVote!==undefined?"disabled":""}>${esc(t)}</button>`).join("")}</div>`;
+  if(S.phase==="question"){const q=curQ()||{a:[]};card.innerHTML=`<div class="eyebrow">Audience vote</div><p>The game already started, so you're in the audience. Vote along: audience points count for the audience prize.</p><div class="pq">${esc(q.q)}</div><div class="pgrid">${q.a.map((t,i)=>`<button class="pbtn ${LETTERS[i]} ${myVote!==undefined?(myVote===i?"mine":"dim"):""}" data-i="${i}" ${myVote!==undefined?"disabled":""}>${esc(t)}</button>`).join("")}</div>`;
     card.querySelectorAll(".pbtn").forEach(b=>b.onclick=()=>B.answer(myId,+b.dataset.i));}
   else if(S.phase==="reveal"){const q=curQ()||{a:[]},ok=myVote===q.correct;card.innerHTML=`<div class="result ${ok?"ok":"no"}"><div class="mark">${ok?"✓":"✕"}</div><h2>${myVote===undefined?"No vote.":ok?"You'd have had it.":"Not this one."}</h2><p class="sub">The answer was <b>${esc(q.a[q.correct])}</b></p><p class="sub">Audience score: <b>${aud.score||0}</b></p></div><p style="text-align:center" class="eyebrow">Send a reaction to the stream</p>${reactRow()}`;bindReacts(card);}
   else{const top=(S.result&&S.result.top)||ranking();card.innerHTML=`<div class="waiting"><div class="dot"></div><h2>Watching as audience</h2><p>${S.phase==="final"?"That's the game.":S.phase==="round"?esc(roundTitle(S.round))+" is up next.":"The hosts are setting up the next question."}</p><div class="minirows">${top.slice(0,3).map((p,i)=>`<div class="minirow"><span class="rank num">${i+1}</span><span>${esc(p.name)}</span><span class="num">${p.score}</span></div>`).join("")}</div></div>${reactRow()}`;bindReacts(card);}}

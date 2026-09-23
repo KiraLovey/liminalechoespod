@@ -1,4 +1,5 @@
-:root{
+
+  :root{
     --ground:#050505; --ground-2:#121008; --ground-3:#1E1A0E; --ground-4:#2A2412;
     --ink:#F2EAD3; --ink-dim:#B8AC8A; --ink-faint:#7A6F52;
     --gold:#C9A84C; --gold-hi:#E6CF8A; --gold-deep:#8F7332; --gold-ink:#1A1508;
@@ -225,7 +226,11 @@
   .player .name-input{padding:14px 16px;border-radius:6px;border:1px solid var(--line);background:var(--ground-2);font-size:1.1rem;width:100%}
   .player .go{padding:18px;border-radius:6px;background:var(--gold);color:var(--gold-ink);font-weight:800;font-size:1.05rem;letter-spacing:.06em;text-transform:uppercase}
   .player .err{color:var(--coral);font-size:.9rem;min-height:1.2em}
-  .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;height:100%;min-height:52vh}
+  .pq{font-family:var(--display);font-size:1.35rem;line-height:1.25;color:var(--ink);text-align:center;padding:6px 4px 2px;text-wrap:balance}
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;height:100%;min-height:46vh}
+  .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-height:40vh;overflow-y:auto;padding:2px}
+  .chip{padding:7px 13px;border-radius:999px;background:var(--ground-2);border:1px solid var(--line);font-size:.95rem;color:var(--ink);animation:chipin .35s ease-out}
+  @keyframes chipin{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
   .pbtn{border-radius:8px;display:grid;place-items:center;font-size:1.2rem;line-height:1.25;font-weight:700;color:#fff;padding:14px;text-align:center;overflow-wrap:anywhere;box-shadow:inset 0 -5px 0 rgba(0,0,0,.3);transition:transform .08s,filter .2s;min-height:120px}
   .pbtn:active{transform:scale(.96)}
   .pbtn.A{background:var(--a)} .pbtn.B{background:var(--b)} .pbtn.C{background:var(--c);color:var(--gold-ink)} .pbtn.D{background:var(--d)}
