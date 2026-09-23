@@ -209,7 +209,7 @@ host:`<div class="host"><aside>
   <div class="settings"><label class="field">Seconds<input type="number" id="s-duration" min="5" max="120"></label><label class="field">Correct<input type="number" id="s-correct" step="50"></label>
   <label class="field">Wrong<input type="number" id="s-wrong" step="50"></label><label class="field">Fastest bonus (+)<input type="number" id="s-fastest" step="50"></label><label class="field">Final round ×<input type="number" id="s-mult" min="1" max="5"></label></div>
   <div class="btnrow"><button class="btn" id="h-sheet">Load questions from sheet</button><button class="btn" id="h-draft">Load draft set</button></div>
-  <div class="btnrow"><button class="btn" id="h-bots">Add 8 simulated players</button><button class="btn danger" id="h-reset">Reset game</button><div id="h-music" style="font-size:.8rem;color:var(--ink-dim);font-weight:500"></div></div>
+  <div class="btnrow"><button class="btn" id="h-bots">Add 8 simulated players</button><button class="btn" id="h-fan" title="Plays the end-of-round fanfare on the stage pages, so you can check it comes through the stream">Test fanfare</button><button class="btn danger" id="h-reset">Reset game</button><div id="h-music" style="font-size:.8rem;color:var(--ink-dim);font-weight:500"></div></div>
 </aside><main>
   <div class="cards" id="h-cards"></div>
   <div><div class="eyebrow">Live answers</div><div class="live" id="h-live"></div></div>
@@ -246,7 +246,7 @@ function blip(kind){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=ac.
   else if(kind==="🔥"){const b=ac.createBufferSource(),buf=ac.createBuffer(1,ac.sampleRate*0.35,ac.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);b.buffer=buf;const f=ac.createBiquadFilter();f.type="bandpass";f.frequency.value=1800;const ng=ac.createGain();ng.gain.value=vol*0.9;b.connect(f);f.connect(ng);ng.connect(g);b.start(t);}
   else if(kind==="👻"){tone(330,240,0.9,"triangle",0,1.6);tone(495,360,0.9,"sine",0.04,1.0);tone(660,480,0.5,"sine",0.5,0.5);}
   else if(kind==="💩"){tone(400,90,0.35,"square",0,.35);tone(160,60,0.2,"sine",0.3,.6);}}
-function showReaction(e){blip(e);instances.filter(i=>i.role==="stage").forEach(inst=>{const fx=inst.root.querySelector("#st-fx");if(!fx)return;const s=document.createElement("span");s.textContent=e;const W=inst.ratio==="tall"?1080:1920;
+function showReaction(e){if(e==="fanfare"){fanfare(false);return;}if(e==="fanfare-final"){fanfare(true);return;}blip(e);instances.filter(i=>i.role==="stage").forEach(inst=>{const fx=inst.root.querySelector("#st-fx");if(!fx)return;const s=document.createElement("span");s.textContent=e;const W=inst.ratio==="tall"?1080:1920;
   s.style.left=(W*0.15+Math.random()*W*0.7)+"px";s.style.setProperty("--dx",(Math.random()*160-80)+"px");s.style.setProperty("--rot",(Math.random()*40-20)+"deg");fx.appendChild(s);setTimeout(()=>s.remove(),3300);});}
 
 /* ============ RENDER ============ */
@@ -264,7 +264,7 @@ function renderHost(inst){const $=s=>inst.root.querySelector(s);
     ["duration","correct","wrong","fastest","mult"].forEach(k=>{const el=$("#s-"+k);el.value=S.settings[k];el.addEventListener("change",e=>{const v=parseInt(e.target.value,10);if(!isNaN(v))B.setSettings(k,v);});});
     $("#h-bots").onclick=()=>B.addBots();$("#h-sheet").onclick=loadFromSheet;
     $("#h-draft").onclick=()=>{if(window.DRAFT_QUESTIONS)B.setQuestions(window.DRAFT_QUESTIONS).then(n=>toast(`Loaded ${n} draft questions.`));};
-    checkMusicFiles($("#h-music"));
+    checkMusicFiles($("#h-music"));$("#h-fan").onclick=()=>{B.react("fanfare");toast("Fanfare sent to the stage pages.");};
     $("#h-reset").onclick=()=>{const btn=$("#h-reset");if(btn.classList.contains("armed")){btn.classList.remove("armed");btn.textContent="Reset game";B.reset();}else{btn.classList.add("armed");btn.textContent="Click again to reset";setTimeout(()=>{btn.classList.remove("armed");btn.textContent="Reset game";},4000);}};
   } else {["duration","correct","wrong","fastest","mult"].forEach(k=>{const el=$("#s-"+k);if(document.activeElement!==el)el.value=S.settings[k];});}
   const act=$("#h-actions");let html="";const endOfRound=S.qIndex>=0&&lastInRound(S.qIndex),lastRound=S.round>=roundCount()-1,peek=`<button class="btn" data-a="peek">Peek leaderboard</button>`;
@@ -335,7 +335,7 @@ function renderStage(inst){const $=s=>inst.root.querySelector(s);
 let musicKey="";
 /* end-of-round / final fanfare: synthesized brass in A (the theme's key), stage pages only */
 let fanfareKey="";
-function fanfare(big){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=ac.currentTime,vol=(CFG.FANFARE_VOLUME??0.22),out=ac.createGain();out.gain.value=vol;
+function fanfare(big){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=ac.currentTime,vol=(CFG.FANFARE_VOLUME??0.3),out=ac.createGain();out.gain.value=vol;
   const lpf=ac.createBiquadFilter();lpf.type="lowpass";lpf.frequency.value=2600;out.connect(lpf);lpf.connect(ac.destination);
   const hit=(midis,at,d,v0=1)=>midis.forEach(m=>{const f=440*Math.pow(2,(m-69)/12),v=v0*2.2/midis.length;[["sawtooth",0.5,0],["square",0.18,0.003],["sawtooth",0.35,-0.003]].forEach(([type,g,det])=>{const o=ac.createOscillator(),og=ac.createGain();o.type=type;o.frequency.value=f*(1+det);og.gain.setValueAtTime(0,t+at);og.gain.linearRampToValueAtTime(g*v,t+at+0.03);og.gain.setValueAtTime(g*v,t+at+d*0.6);og.gain.exponentialRampToValueAtTime(0.0001,t+at+d);o.connect(og);og.connect(out);o.start(t+at);o.stop(t+at+d+0.05);});});
   const A=[57,64,69,73],D=[62,66,69,74],E=[64,68,71,76],Ahi=[57,64,69,73,76,81];
@@ -363,7 +363,7 @@ function setMusicStatus(m){musicStatus=m;console.log("[music]",m);const d=$$("#s
 async function musicBuffer(url){if(musicCache[url])return musicCache[url];const ac=audio();if(!ac)throw new Error("no AudioContext");
   const r=await fetch(url,{cache:"force-cache"});if(!r.ok)throw new Error("HTTP "+r.status+" for "+url);
   const buf=await ac.decodeAudioData(await r.arrayBuffer());musicCache[url]=buf;return buf;}
-function stopMusic(fadeSec){if(musicNode){const n=musicNode,g=musicGain,ac=audio();musicNode=null;musicGain=null;
+function stopMusic(fadeSec){if(musicNode||musicFallback)setMusicStatus("music stopped");if(musicNode){const n=musicNode,g=musicGain,ac=audio();musicNode=null;musicGain=null;
     try{g.gain.cancelScheduledValues(ac.currentTime);g.gain.setValueAtTime(g.gain.value,ac.currentTime);g.gain.linearRampToValueAtTime(0,ac.currentTime+fadeSec);n.stop(ac.currentTime+fadeSec+0.05);}catch(e){}}
   if(musicFallback){const a=musicFallback;musicFallback=null;let v=a.volume;const f=setInterval(()=>{v-=0.03;if(v<=0){clearInterval(f);a.pause();a.remove();}else a.volume=v;},60);}}
 async function startMusic(url){const target=CFG.MUSIC_VOLUME??0.18,ac=audio();
