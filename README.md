@@ -55,6 +55,12 @@ Until the sheet is ready, **Load draft set** loads the 45 auto-picked draft ques
 6. **Reset game** needs two clicks. It clears players and scores but keeps the loaded questions.
 
 ## Sounds and music
+- **Your own sound files** (optional): drop mp3/ogg files into `assets/sfx/` and map them in `config.js`. Any reaction or fanfare without a file keeps its built-in synthesized sound.
+  ```js
+  REACTION_SOUNDS: { "😂": "/assets/sfx/laugh.mp3", "👻": "/assets/sfx/ghost.mp3" },
+  FANFARE_SOUND: "/assets/sfx/fanfare.mp3", FANFARE_FINAL_SOUND: "/assets/sfx/fanfare-final.mp3",
+  ```
+  Keep them short (reactions under a second, fanfares 2–4 s). Levels come from `REACTION_VOLUME` and `FANFARE_VOLUME`. Only use files whose licence allows use in a live stream on every platform you simulcast to (CC0 / public domain is the safe choice; "free for personal use" often isn't enough for a public broadcast).
 - **Reaction sounds** are tiny synthesized blips played on the stage pages only (so they go to the stream, not to phones). Turn them off with `SOUNDS: false` in `config.js`; set the level with `REACTION_VOLUME: 0.12` (0–1). A short synthesized fanfare (in A, to match the theme) plays when the end-of-round leaderboard and the final podium appear; its level is `FANFARE_VOLUME: 0.3`.
 - **Category music** is optional. Put loopable audio files in `assets/music/` and map them in `config.js`:
   ```js
