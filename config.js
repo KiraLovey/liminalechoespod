@@ -6,7 +6,7 @@ window.TRIVIA_CONFIG = {
   SHEET_CSV_URL: "",                              // Google Sheet → File → Share → Publish to web → Questions tab → CSV → paste the link here
   PLAY_URL: "play.liminalechoespod.com",          // shown on the lobby screen
   PER_ROUND: 5,
-  SOUNDS: true, REACTION_VOLUME: 0.12, FANFARE_VOLUME: 0.22,   // reaction blips + end-of-round fanfare, stage pages only
+  SOUNDS: true, REACTION_VOLUME: 0.12, FANFARE_VOLUME: 0.3,   // reaction blips + end-of-round fanfare, stage pages only
   MUSIC_VOLUME: 0.18,                             // 0–1; the beds are normalized so this means the same for every category
   MUSIC: {                                        // category → loop file (keys must match the Category column exactly)
     "Out of This World": "/assets/music/out-of-this-world.mp3",

@@ -55,7 +55,7 @@ Until the sheet is ready, **Load draft set** loads the 45 auto-picked draft ques
 6. **Reset game** needs two clicks. It clears players and scores but keeps the loaded questions.
 
 ## Sounds and music
-- **Reaction sounds** are tiny synthesized blips played on the stage pages only (so they go to the stream, not to phones). Turn them off with `SOUNDS: false` in `config.js`; set the level with `REACTION_VOLUME: 0.12` (0–1). A short synthesized fanfare (in A, to match the theme) plays when the end-of-round leaderboard and the final podium appear; its level is `FANFARE_VOLUME: 0.22`.
+- **Reaction sounds** are tiny synthesized blips played on the stage pages only (so they go to the stream, not to phones). Turn them off with `SOUNDS: false` in `config.js`; set the level with `REACTION_VOLUME: 0.12` (0–1). A short synthesized fanfare (in A, to match the theme) plays when the end-of-round leaderboard and the final podium appear; its level is `FANFARE_VOLUME: 0.3`.
 - **Category music** is optional. Put loopable audio files in `assets/music/` and map them in `config.js`:
   ```js
   MUSIC: { "Out of This World": "/assets/music/space.mp3", "Cryptid Corner": "/assets/music/woods.mp3", "*": "/assets/music/default.mp3" },
