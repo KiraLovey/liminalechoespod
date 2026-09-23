@@ -9,6 +9,7 @@
 "use strict";
 const CFG=Object.assign({GAME:"ECHO",SUPABASE_URL:"",SUPABASE_KEY:"",SHEET_CSV_URL:"",PER_ROUND:5},window.TRIVIA_CONFIG||{});
 const ROLE=document.body.dataset.role||"studio";
+if(/[?&]debug/.test(location.search))document.documentElement.classList.add("debug");
 const PER_ROUND=CFG.PER_ROUND;
 const LETTERS=["A","B","C","D"];
 const REACTIONS=[["😂","laugh"],["😱","gasp"],["🔥","fire"],["👻","spooky"],["💩","poop"]];
@@ -208,7 +209,7 @@ host:`<div class="host"><aside>
   <div class="settings"><label class="field">Seconds<input type="number" id="s-duration" min="5" max="120"></label><label class="field">Correct<input type="number" id="s-correct" step="50"></label>
   <label class="field">Wrong<input type="number" id="s-wrong" step="50"></label><label class="field">Fastest bonus (+)<input type="number" id="s-fastest" step="50"></label><label class="field">Final round ×<input type="number" id="s-mult" min="1" max="5"></label></div>
   <div class="btnrow"><button class="btn" id="h-sheet">Load questions from sheet</button><button class="btn" id="h-draft">Load draft set</button></div>
-  <div class="btnrow"><button class="btn" id="h-bots">Add 8 simulated players</button><button class="btn danger" id="h-reset">Reset game</button></div>
+  <div class="btnrow"><button class="btn" id="h-bots">Add 8 simulated players</button><button class="btn danger" id="h-reset">Reset game</button><div id="h-music" style="font-size:.8rem;color:var(--ink-dim);font-weight:500"></div></div>
 </aside><main>
   <div class="cards" id="h-cards"></div>
   <div><div class="eyebrow">Live answers</div><div class="live" id="h-live"></div></div>
@@ -221,7 +222,7 @@ stage:`<div class="stage-wrap"><div class="stage" id="stage"><div class="grain">
   <div class="cam one"><span class="lbl">Cam 1</span><span class="name">Kira</span></div><div class="cam two"><span class="lbl">Cam 2</span><span class="name">Fox</span></div>
   <div class="content" id="st-content"></div>
   
-  <div class="corner" id="st-corner"></div><div class="fx" id="st-fx"></div></div></div>`,
+  <div class="corner" id="st-corner"></div><div class="fx" id="st-fx"></div><div class="debug" id="st-debug"></div></div></div>`,
 play:`<div class="player"><div class="bar"><span class="me" id="p-me">Not joined</span><span><span class="pts num" id="p-pts"></span></span></div><div class="card" id="p-card"></div></div>`,
 };
 
@@ -263,6 +264,7 @@ function renderHost(inst){const $=s=>inst.root.querySelector(s);
     ["duration","correct","wrong","fastest","mult"].forEach(k=>{const el=$("#s-"+k);el.value=S.settings[k];el.addEventListener("change",e=>{const v=parseInt(e.target.value,10);if(!isNaN(v))B.setSettings(k,v);});});
     $("#h-bots").onclick=()=>B.addBots();$("#h-sheet").onclick=loadFromSheet;
     $("#h-draft").onclick=()=>{if(window.DRAFT_QUESTIONS)B.setQuestions(window.DRAFT_QUESTIONS).then(n=>toast(`Loaded ${n} draft questions.`));};
+    checkMusicFiles($("#h-music"));
     $("#h-reset").onclick=()=>{const btn=$("#h-reset");if(btn.classList.contains("armed")){btn.classList.remove("armed");btn.textContent="Reset game";B.reset();}else{btn.classList.add("armed");btn.textContent="Click again to reset";setTimeout(()=>{btn.classList.remove("armed");btn.textContent="Reset game";},4000);}};
   } else {["duration","correct","wrong","fastest","mult"].forEach(k=>{const el=$("#s-"+k);if(document.activeElement!==el)el.value=S.settings[k];});}
   const act=$("#h-actions");let html="";const endOfRound=S.qIndex>=0&&lastInRound(S.qIndex),lastRound=S.round>=roundCount()-1,peek=`<button class="btn" data-a="peek">Peek leaderboard</button>`;
@@ -330,7 +332,7 @@ function renderStage(inst){const $=s=>inst.root.querySelector(s);
       ${aud?`<div class="podium-aud">Audience champion · <b>${esc(aud.name)}</b> · ${aud.score||0} pts</div>`:""}`;}
   inst.key=key;}
 /* Category music: CFG.MUSIC = {"Cryptid Corner":"/assets/music/cryptid.mp3", ...}. Plays quietly on stage pages during a round. */
-let musicEl=null,musicKey="";
+let musicKey="";
 /* end-of-round / final fanfare: synthesized brass in A (the theme's key), stage pages only */
 let fanfareKey="";
 function fanfare(big){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=ac.currentTime,vol=(CFG.FANFARE_VOLUME??0.22),out=ac.createGain();out.gain.value=vol;
@@ -349,8 +351,38 @@ function musicTick(){if(!instances.some(i=>i.role==="stage"))return;
   const playing=["round","setup","question","reveal"].includes(S.phase)||(S.phase==="leaderboard"&&!!S.peekFrom);
   const key=playing?(CFG.MUSIC[roundTitle(S.round)]||CFG.MUSIC["*"]||""):"";
   if(key===musicKey)return;musicKey=key;
-  if(musicEl){const old=musicEl;musicEl=null;let v=old.volume;const fade=setInterval(()=>{v-=0.05;if(v<=0){clearInterval(fade);old.pause();old.remove();}else old.volume=v;},80);}
-  if(key){const a=new Audio(key);a.loop=true;a.volume=0;document.body.appendChild(a);a.play().catch(()=>{});musicEl=a;let v=0;const target=CFG.MUSIC_VOLUME??0.18;const fade=setInterval(()=>{if(musicEl!==a){clearInterval(fade);return;}v+=0.02;if(v>=target){a.volume=target;clearInterval(fade);}else a.volume=v;},80);}}
+  stopMusic(0.4);
+  if(key)startMusic(key);
+  // warm the next round's bed so it starts instantly
+  const nxt=CFG.MUSIC[roundTitle(S.round+1)]||CFG.MUSIC["*"];if(nxt&&nxt!==key)musicBuffer(nxt).catch(()=>{});}
+/* Music runs through the same WebAudio context as the reaction blips (decoded buffers, gapless loop), so wherever the
+   blips can be heard the music can too. HTMLAudio fallback if decoding fails. Status is logged as [music] and shown on
+   stage pages opened with ?debug. */
+const musicCache={};let musicNode=null,musicGain=null,musicFallback=null,musicStatus="";
+function setMusicStatus(m){musicStatus=m;console.log("[music]",m);const d=$$("#st-debug");if(d)d.textContent=m;}
+async function musicBuffer(url){if(musicCache[url])return musicCache[url];const ac=audio();if(!ac)throw new Error("no AudioContext");
+  const r=await fetch(url,{cache:"force-cache"});if(!r.ok)throw new Error("HTTP "+r.status+" for "+url);
+  const buf=await ac.decodeAudioData(await r.arrayBuffer());musicCache[url]=buf;return buf;}
+function stopMusic(fadeSec){if(musicNode){const n=musicNode,g=musicGain,ac=audio();musicNode=null;musicGain=null;
+    try{g.gain.cancelScheduledValues(ac.currentTime);g.gain.setValueAtTime(g.gain.value,ac.currentTime);g.gain.linearRampToValueAtTime(0,ac.currentTime+fadeSec);n.stop(ac.currentTime+fadeSec+0.05);}catch(e){}}
+  if(musicFallback){const a=musicFallback;musicFallback=null;let v=a.volume;const f=setInterval(()=>{v-=0.03;if(v<=0){clearInterval(f);a.pause();a.remove();}else a.volume=v;},60);}}
+async function startMusic(url){const target=CFG.MUSIC_VOLUME??0.18,ac=audio();
+  try{const buf=await musicBuffer(url);if(musicKey!==url)return;              // the phase moved on while we were decoding
+    if(ac.state!=="running"){await ac.resume().catch(()=>{});}
+    const n=ac.createBufferSource(),g=ac.createGain();n.buffer=buf;n.loop=true;g.gain.setValueAtTime(0,ac.currentTime);g.gain.linearRampToValueAtTime(target,ac.currentTime+1.5);
+    n.connect(g);g.connect(ac.destination);n.start();musicNode=n;musicGain=g;
+    setMusicStatus((ac.state==="running"?"playing ":"BLOCKED (audio context "+ac.state+", click the page once) ")+url.split("/").pop());}
+  catch(e){setMusicStatus("decode failed ("+e.message+"), trying <audio> for "+url.split("/").pop());
+    const a=new Audio(url);a.loop=true;a.volume=0;document.body.appendChild(a);musicFallback=a;
+    a.play().then(()=>{let v=0;const f=setInterval(()=>{if(musicFallback!==a){clearInterval(f);return;}v+=0.02;if(v>=target){a.volume=target;clearInterval(f);}else a.volume=v;},80);setMusicStatus("playing (audio tag) "+url.split("/").pop());})
+     .catch(err=>setMusicStatus("cannot play "+url.split("/").pop()+": "+err.name+" — "+(err.name==="NotAllowedError"?"the browser wants one click on the page first":"check the file exists in assets/music")));
+    a.onerror=()=>setMusicStatus("file not found or unplayable: "+url);}}
+/* host panel: confirm every mapped music file is actually reachable on the site (a missing upload is the usual reason for silence) */
+async function checkMusicFiles(el){if(!el)return;const urls=[...new Set(Object.values(CFG.MUSIC||{}))];if(!urls.length){el.textContent="Music: none configured.";return;}
+  el.textContent="Music: checking files…";const bad=[];
+  await Promise.all(urls.map(async u=>{try{const r=await fetch(u,{method:"HEAD"});if(!r.ok)bad.push(u.split("/").pop()+" ("+r.status+")");}catch(e){bad.push(u.split("/").pop());}}));
+  if(bad.length){el.style.color="var(--coral)";el.textContent=`Music: ${bad.length} of ${urls.length} files missing on the site — ${bad.join(", ")}. Upload assets/music from music-update.zip.`;}
+  else{el.style.color="";el.textContent=`Music: all ${urls.length} files found. Plays on the stage pages only; open /stage?debug to see its status.`;}}
 function fitContent(inst){const c=inst.root.querySelector("#st-content");if(!c)return;let f=1;c.style.setProperty("--fit",f);
   c.querySelectorAll(".ans span:last-child").forEach(s=>{const n=s.textContent.length;s.style.fontSize=n>70?"0.8em":n>50?"0.88em":"";});
   c.style.alignContent="start";                       // measure from the top so overflow is visible to scrollHeight

@@ -294,3 +294,7 @@
   .solo-links{display:flex;gap:10px;flex-wrap:wrap;font-size:.8rem}
   .solo-links a{color:var(--gold);text-decoration:none;border:1px solid var(--line);padding:6px 10px;border-radius:4px}
   .solo-links a:hover{border-color:var(--gold)}
+
+/* music/audio status line, visible only on stage pages opened with ?debug */
+.stage .debug{display:none;position:absolute;left:24px;bottom:16px;font:600 22px/1.2 var(--body);color:#fff;background:rgba(0,0,0,.6);padding:8px 14px;border-radius:6px;pointer-events:none}
+html.debug .stage .debug{display:block}
