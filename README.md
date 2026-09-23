@@ -54,6 +54,20 @@ Until the sheet is ready, **Load draft set** loads the 45 auto-picked draft ques
 5. Scoring: correct +500, wrong −250, no answer 0. Host questions (the fifth in each round and all of the Bonus Round) add +100 to the fastest correct *player*. Bonus Round doubles the correct value. All of these are editable in the sidebar during the show.
 6. **Reset game** needs two clicks. It clears players and scores but keeps the loaded questions.
 
+## Sounds and music
+- **Reaction sounds** are tiny synthesized blips played on the stage pages only (so they go to the stream, not to phones). Turn them off with `SOUNDS: false` in `config.js`; set the level with `REACTION_VOLUME: 0.12` (0–1). A short synthesized fanfare (in A, to match the theme) plays when the end-of-round leaderboard and the final podium appear; its level is `FANFARE_VOLUME: 0.22`.
+- **Category music** is optional. Put loopable audio files in `assets/music/` and map them in `config.js`:
+  ```js
+  MUSIC: { "Out of This World": "/assets/music/space.mp3", "Cryptid Corner": "/assets/music/woods.mp3", "*": "/assets/music/default.mp3" },
+  MUSIC_VOLUME: 0.18,
+  ```
+  The stage fades a category's track in on the round title card and keeps it running under every question, reveal and peek; it fades out when the end-of-round leaderboard appears (fanfare only), and the next category's track starts with the next round. `"*"` is the fallback for categories without their own file. Use music you have the rights to stream on every platform you simulcast to (see the note in the chat about DMCA-safe sources).
+
+### If there's no music
+1. Open `/host`: under Reset game it says whether all nine music files are reachable on the site. If any are missing, the `assets/music` folder didn't make it into the repo (GitHub's drag-and-drop upload sometimes drops files silently); upload it again and check the commit lists the .mp3/.ogg files.
+2. Open `/stage?debug` in a normal browser tab and press Begin round on the host panel. A status line appears bottom-left: "playing …", "BLOCKED (click the page once)", or the actual error. Browsers won't start sound in a tab until you click somewhere on the page once; OBS and Meld browser sources don't have that restriction (in OBS, right-click the source → Interact and click once if ever needed).
+3. In OBS, the browser source's audio goes wherever "Control audio via OBS" sends it: off = desktop audio, on = its own mixer channel. Same channel as the reaction blips.
+
 ## Files
 - `assets/app.js` — the whole game (player, host, stage, studio) and both backends
 - `assets/app.css` — styling, both stage layouts, transparent camera holes
