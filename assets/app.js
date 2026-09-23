@@ -331,7 +331,22 @@ function renderStage(inst){const $=s=>inst.root.querySelector(s);
   inst.key=key;}
 /* Category music: CFG.MUSIC = {"Cryptid Corner":"/assets/music/cryptid.mp3", ...}. Plays quietly on stage pages during a round. */
 let musicEl=null,musicKey="";
-function musicTick(){if(!CFG.MUSIC||!instances.some(i=>i.role==="stage"))return;const playing=["round","setup","question","reveal"].includes(S.phase);
+/* end-of-round / final fanfare: synthesized brass in A (the theme's key), stage pages only */
+let fanfareKey="";
+function fanfare(big){if(!SOUNDS)return;const ac=audio();if(!ac)return;const t=ac.currentTime,vol=(CFG.FANFARE_VOLUME??0.22),out=ac.createGain();out.gain.value=vol;
+  const lpf=ac.createBiquadFilter();lpf.type="lowpass";lpf.frequency.value=2600;out.connect(lpf);lpf.connect(ac.destination);
+  const hit=(midis,at,d,v0=1)=>midis.forEach(m=>{const f=440*Math.pow(2,(m-69)/12),v=v0*2.2/midis.length;[["sawtooth",0.5,0],["square",0.18,0.003],["sawtooth",0.35,-0.003]].forEach(([type,g,det])=>{const o=ac.createOscillator(),og=ac.createGain();o.type=type;o.frequency.value=f*(1+det);og.gain.setValueAtTime(0,t+at);og.gain.linearRampToValueAtTime(g*v,t+at+0.03);og.gain.setValueAtTime(g*v,t+at+d*0.6);og.gain.exponentialRampToValueAtTime(0.0001,t+at+d);o.connect(og);og.connect(out);o.start(t+at);o.stop(t+at+d+0.05);});});
+  const A=[57,64,69,73],D=[62,66,69,74],E=[64,68,71,76],Ahi=[57,64,69,73,76,81];
+  if(big){hit(A,0,0.28);hit(A,0.32,0.28);hit(D,0.64,0.36);hit(E,1.04,0.36);hit(Ahi,1.48,1.6,1.1);}   // final podium: two stabs, IV, V, long I
+  else{hit(A,0,0.25);hit(D,0.3,0.25);hit(Ahi,0.6,1.1,1.0);}                                           // end of round: I, IV, long I
+  const n=ac.createBufferSource(),buf=ac.createBuffer(1,ac.sampleRate*0.5,ac.sampleRate),dd=buf.getChannelData(0);for(let i=0;i<dd.length;i++)dd[i]=(Math.random()*2-1)*Math.pow(1-i/dd.length,3);
+  n.buffer=buf;const bp=ac.createBiquadFilter();bp.type="bandpass";bp.frequency.value=6000;const ng=ac.createGain();ng.gain.value=0.35;n.connect(bp);bp.connect(ng);ng.connect(out);n.start(t+(big?1.48:0.6));}
+function musicTick(){if(!instances.some(i=>i.role==="stage"))return;
+  const boardKey=(S.phase==="leaderboard"&&!S.peekFrom)?"board:"+S.round:S.phase==="final"?"final":"";
+  if(boardKey!==fanfareKey){fanfareKey=boardKey;if(boardKey)fanfare(boardKey==="final");}
+  if(!CFG.MUSIC)return;
+  // the category bed runs from the round title card through every question and reveal (and keeps going under a peek), and stops for the end-of-round leaderboard
+  const playing=["round","setup","question","reveal"].includes(S.phase)||(S.phase==="leaderboard"&&!!S.peekFrom);
   const key=playing?(CFG.MUSIC[roundTitle(S.round)]||CFG.MUSIC["*"]||""):"";
   if(key===musicKey)return;musicKey=key;
   if(musicEl){const old=musicEl;musicEl=null;let v=old.volume;const fade=setInterval(()=>{v-=0.05;if(v<=0){clearInterval(fade);old.pause();old.remove();}else old.volume=v;},80);}
